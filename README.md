@@ -6,27 +6,30 @@ Xero Ruby SDK for OAuth 2.0 generated from [Xero API OpenAPI Spec](https://githu
 # Documentation
 Xero Ruby SDK supports Xero's OAuth2.0 authentication and supports the following Xero API sets.
 
-## APIS
+## API Client Docs
 * [Accounting Api Docs](/docs/accounting/AccountingApi.md)
 * [Asset Api Docs](/docs/assets/AssetApi.md)
 * [Project Api Docs](docs/projects/ProjectApi.md)
+* [File Api Docs](docs/files/FileApi.md)
+* [Payroll Docs (AU)](docs/payroll_au/PayrollAuApi.md)
+* [Payroll Docs (NZ)](docs/payroll_nz/PayrollNzApi.md)
+* [Payroll Docs (UK)](docs/payroll_uk/PayrollUkApi.md)
 
-## Models
+## API Model Docs
 * [Accounting Models Docs](/docs/accounting/)
 * [Asset Models Docs](/docs/assets/)
 * [Project Models Docs](/docs/projects/)
-
-### Coming soon
-* payroll (AU)
-* payroll (NZ/UK)
-* files
-* xero hq
-* bank feeds
+* [File Models Docs](/docs/files/)
+* [Payroll Models (AU)](docs/payroll_au/)
+* [Payroll Models (NZ)](docs/payroll_nz/)
+* [Payroll Models (UK)](docs/payroll_uk/)
 
 ## Sample Apps
 We have two apps showing SDK usage.
 * https://github.com/XeroAPI/xero-ruby-oauth2-starter (**Sinatra** - session based / getting started)
 * https://github.com/XeroAPI/xero-ruby-oauth2-app (**Rails** - token management / full examples)
+
+![sample-app](https://i.imgur.com/OOEn55G.png)
 
 ## Looking for OAuth 1.0a support?
 Check out the [Xeroizer](https://github.com/waynerobinson/xeroizer) gem (maintained by community).
@@ -58,7 +61,8 @@ creds = {
   client_id: ENV['CLIENT_ID'],
   client_secret: ENV['CLIENT_SECRET'],
   redirect_uri: ENV['REDIRECT_URI'],
-  scopes: ENV['SCOPES']
+  scopes: ENV['SCOPES'],
+  state: "this-can-be-a-custom-state-parameter" # optional
 }
 xero_client ||= XeroRuby::ApiClient.new(credentials: creds)
 ```
@@ -83,6 +87,9 @@ In your callback route catch, calling `get_token_set_from_callback` will exchang
 token_set = xero_client.get_token_set_from_callback(params)
 
 # save token_set JSON in a datastore in relation to the user authentication
+
+puts params['state']
+=> "this-can-be-a-custom-state-parameter"
 ```
 
 ## Making API calls once you have a token_set
@@ -117,7 +124,8 @@ Refresh/connection helpers
 ```ruby
 @token_set = xero_client.refresh_token_set(user.token_set)
 
-# Xero's tokens can potentially facilitate (n) org connections in a single token. It is important to store the `tenantId` of the Organisation your user wants to read/write data.
+# Xero's tokens can potentially facilitate (n) org connections in a single token.
+# It is important to store the `tenantId` of the Organisation your user wants to read/write data.
 
 # The `updatedDateUtc` will show you the most recently authorized Tenant (AKA Organisation)
 connections = xero_client.connections
@@ -130,7 +138,8 @@ connections = xero_client.connections
   "updatedDateUtc" => "2020-04-15T22:37:10.4943410"
 }]
 
-# disconnect an org from a user's connections. Pass the connection ['id'] not ['tenantId']. Useful if you want to enforce only a single org connection per token.
+# disconnect an org from a user's connections. Pass the connection ['id'] not ['tenantId'].
+# Useful if you want to enforce only a single org connection per token.
 remaining_connections = xero_client.disconnect(connections[0]['id'])
 
 # set a refreshed token_set
@@ -155,51 +164,90 @@ end
 ```
 
 ## API Usage
+
+### Accounting API
 ```ruby
-  require 'xero-ruby'
+require 'xero-ruby'
 
-  xero_client.refresh_token_set(user.token_set)
+xero_client.refresh_token_set(user.token_set)
 
-  tenant_id = user.active_tenant_id
-  # example of how to store the `tenantId` of the specific tenant (aka organisation)
+tenant_id = user.active_tenant_id
+# example of how to store the `tenantId` of the specific tenant (aka organisation)
 
-  # https://github.com/XeroAPI/xero-ruby/blob/master/accounting/lib/xero-ruby/api/accounting_api.rb
+# https://github.com/XeroAPI/xero-ruby/blob/master/accounting/lib/xero-ruby/api/accounting_api.rb
+
+# Get Accounts
+accounts = xero_client.accounting_api.get_accounts(tenant_id).accounts
+
+# Create Invoice
+invoices = { invoices: [{ type: XeroRuby::Accounting::Invoice::ACCREC, contact: { contact_id: contacts[0].contact_id }, line_items: [{ description: "Big Agency", quantity: BigDecimal("2.0"), unit_amount: BigDecimal("50.99"), account_code: "600", tax_type: XeroRuby::Accounting::TaxType::NONE }], date: "2019-03-11", due_date: "2018-12-10", reference: "Website Design", status: XeroRuby::Accounting::Invoice::DRAFT }]}
+invoice = xero_client.accounting_api.create_invoices(tenant_id, invoices).invoices.first
+
+# Create History
+payment = xero_client.accounting_api.get_payments(tenant_id).payments.first
+history_records = { history_records: [{ details: "This payment now has some History!" }]}
+payment_history = xero_client.accounting_api.create_payment_history(tenant_id, payment.payment_id, history_records)
+
+# Create Attachment
+account = xero_client.accounting_api.get_accounts(tenant_id).accounts.first
+file_name = "an-account-filename.png"
+opts = {
+  include_online: true
+}
+file = File.read(Rails.root.join('app/assets/images/xero-api.png'))
+attachment = xero_client.accounting_api.create_account_attachment_by_file_name(tenant_id, @account.account_id, file_name, file, opts)
+```
+
+### Assets API
+```ruby
+# https://github.com/XeroAPI/xero-ruby/blob/master/accounting/lib/xero-ruby/api/asset_api.rb
   
-  # Get Accounts
-  accounts = xero_client.accounting_api.get_accounts(tenant_id).accounts
+# Create Asset
+asset = {
+  "assetName": "AssetName: #{rand(10000)}",
+  "assetNumber": "Asset: #{rand(10000)}",
+  "assetStatus": "DRAFT"
+}
+asset = xero_client.asset_api.create_asset(tenant_id, asset)
+```
 
-  # Create Invoice
-  invoices = { invoices: [{ type: XeroRuby::Accounting::Invoice::ACCREC, contact: { contact_id: contacts[0].contact_id }, line_items: [{ description: "Big Agency", quantity: BigDecimal("2.0"), unit_amount: BigDecimal("50.99"), account_code: "600", tax_type: XeroRuby::Accounting::TaxType::NONE }], date: "2019-03-11", due_date: "2018-12-10", reference: "Website Design", status: XeroRuby::Accounting::Invoice::DRAFT }]}
-  invoice = xero_client.accounting_api.create_invoices(tenant_id, invoices).invoices.first
+### Project API
+```ruby
+# https://github.com/XeroAPI/xero-ruby/blob/master/docs/projects/ProjectApi.md
 
-  # Create History
-  payment = xero_client.accounting_api.get_payments(tenant_id).payments.first
-  history_records = { history_records: [{ details: "This payment now has some History!" }]}
-  payment_history = xero_client.accounting_api.create_payment_history(tenant_id, payment.payment_id, history_records)
+# Get Projects
+projects = xero_client.project_api.get_projects(tenant_id).items
+```
 
-  # Create Attachment
-  account = xero_client.accounting_api.get_accounts(tenant_id).accounts.first
-  file_name = "an-account-filename.png"
-  opts = {
-    include_online: true
-  }
-  file = File.read(Rails.root.join('app/assets/images/xero-api.png'))
-  attachment = xero_client.accounting_api.create_account_attachment_by_file_name(tenant_id, @account.account_id, file_name, file, opts)
+### Files API
+```ruby
+# https://github.com/XeroAPI/xero-ruby/blob/master/docs/files/FileApi.md
 
-  # https://github.com/XeroAPI/xero-ruby/blob/master/accounting/lib/xero-ruby/api/asset_api.rb
+# Get Files
+opts = {
+  pagesize: 50, # Integer | pass an optional page size value
+  page: 2, # Integer | number of records to skip for pagination
+  sort: 'CreatedDateUTC DESC' # String | values to sort by
+}
   
-  # Create Asset
-  asset = {
-    "assetName": "AssetName: #{rand(10000)}",
-    "assetNumber": "Asset: #{rand(10000)}",
-    "assetStatus": "DRAFT"
-  }
-  asset = xero_client.asset_api.create_asset(tenant_id, asset)
+files = xero_client.files_api.get_files(tenant_id, opts).files
+```
 
-  # https://github.com/XeroAPI/xero-ruby/blob/master/docs/projects/ProjectApi.md
+### Payroll API(s)
+```ruby
+# https://github.com/XeroAPI/xero-ruby/blob/master/docs/payroll_au/PayrollAuApi.md
+employee_id = 'employee_uuid'
+employee = xero_client.payroll_au_api.get_employee(tenant_id, employee_id).employee
 
-  # Get Projects
-  projects = xero_client.project_api.get_projects(tenant_id).items
+
+# https://github.com/XeroAPI/xero-ruby/blob/master/docs/payroll_nz/PayrollNzApi.md
+timesheet_id = 'timesheeet_uuid'
+timesheet = xero_client.payroll_nz_api.approve_timesheet(tenant_id, timesheet_id).timesheets
+
+
+# https://github.com/XeroAPI/xero-ruby/blob/master/docs/payroll_uk/PayrollUkApi.md
+employee_id = 'employee_uuid'
+wages = xero_client.payroll_uk_api.get_employee_salary_and_wages(tenant_id, employee_id, opts).salary_and_wages
 ```
 
 ## BigDecimal
@@ -219,23 +267,35 @@ All monetary and fields and a couple quantity fields utilize BigDecimal
 ```
 
 ## Querying & Filtering
-Examples for the `opts` (_options_) parameters most endpoints support.
+Examples for the `opts` (_options_) parameters most endpoints support. This is an area of focus and improvement. If you have a complex filering/sorting/where usage that is not supported please [open an issue](https://github.com/XeroAPI/xero-ruby/issues).
 ```ruby
 # Invoices
-opts = { 
-  statuses: [XeroRuby::Accounting::Invoice::PAID],
-  where: { amount_due: '=0' },
-  if_modified_since: (DateTime.now - 1.hour).to_s
+ opts = {
+  page: 1,
+  where: {
+    type: ['=', XeroRuby::Accounting::Invoice::ACCREC],
+    fully_paid_on_date: (DateTime.now - 6.month)..DateTime.now,
+    amount_due: ['>=', 0],
+    reference: ['=', "Website Design"],
+    invoice_number: ['=', "INV-0001"],
+    contact_id: ['=', 'contact-uuid-xxxx-xxx-xxxxxxx'],
+    contact_number: ['=', "the-contact-number"],
+    # date: (DateTime.now - 2.year)..DateTime.now
+    # ▲ you can pass a range ▼ or a date & operator
+    date: ['>=', DateTime.now - 2.year],
+    status: ['=', XeroRuby::Accounting::Invoice::PAID]
+  }
 }
 xero_client.accounting_api.get_invoices(tenant_id, opts).invoices
 
 # Contacts 
 opts = {
   if_modified_since: (DateTime.now - 1.weeks).to_s,
+  # ▼ ordering by strings needs PascalCase convention
   order: 'UpdatedDateUtc DESC',
   where: {
-    is_customer: '==true',
-    is_supplier: '==true',
+    is_customer: ['==', true],
+    is_supplier: ['==', true]
   }
 }
 xero_client.accounting_api.get_contacts(tenant_id, opts).contacts
@@ -243,7 +303,7 @@ xero_client.accounting_api.get_contacts(tenant_id, opts).contacts
 # Bank Transactions
 opts = {
   if_modified_since: (DateTime.now - 1.year).to_s,
-  where: { type: %{=="#{XeroRuby::Accounting::BankTransaction::SPEND}"}},
+  where: { type: ['==', XeroRuby::Accounting::BankTransaction::SPEND] },
   order: 'UpdatedDateUtc DESC',
   page: 2,
   unitdp: 4 # (Unit Decimal Places)
@@ -252,8 +312,9 @@ xero_client.accounting_api.get_bank_transactions(tenant_id, opts).bank_transacti
 
 # Bank Transfers
 opts = {
+  if_modified_since: (DateTime.now - 1.month).to_s,
   where: {
-    amount: "> 999.99"
+    amount: [">=" , 999.99]
   },
   order: 'Amount ASC'
 }
