@@ -77,7 +77,7 @@ module XeroRuby
       @config.base_url = @config.payroll_nz_url
       XeroRuby::PayrollNzApi.new(self)
     end
-    
+
     def payroll_uk_api
       @config.base_url = @config.payroll_uk_url
       XeroRuby::PayrollUkApi.new(self)
@@ -134,14 +134,16 @@ module XeroRuby
 
     # Connection heplers
     def connections
+      @config.base_url = 'https://api.xero.com'
       opts = { :header_params => {'Content-Type': 'application/json'}, :auth_names => ['OAuth2'] }
-      response = call_api(:GET, 'https://api.xero.com/connections/', nil, opts)
+      response = call_api(:GET, '/connections', nil, opts)
       response[0]
     end
 
     def disconnect(connection_id)
+      @config.base_url = 'https://api.xero.com'
       opts = { :header_params => {'Content-Type': 'application/json'}, :auth_names => ['OAuth2'] }
-      call_api(:DELETE, "https://api.xero.com/connections/#{connection_id}", nil, opts)
+      call_api(:DELETE, "/connections/#{connection_id}", nil, opts)
       connections
     end
 
@@ -319,7 +321,7 @@ module XeroRuby
         else
           raise e
         end
-      end 
+      end
 
       convert_to_type(data, return_type, api_client)
     end
@@ -417,13 +419,9 @@ module XeroRuby
     end
 
     def build_request_url(path)
-      if @config.base_url
-        # Add leading and trailing slashes to path
-        path = "/#{path}".gsub(/\/+/, '/')
-        @config.base_url + path
-      else
-        path
-      end
+      # Add leading and trailing slashes to path
+      path = "/#{path}".gsub(/\/+/, '/')
+      @config.base_url + path
     end
 
     # Update hearder and query params based on authentication settings.
@@ -589,7 +587,7 @@ module XeroRuby
           end
         when Range
           if v.first.is_a?(DateTime) || v.first.is_a?(Date) || v.first.is_a?(Time)
-            "#{camelize_key(k)} >= DateTime(#{v.first.strftime("%Y,%m,%d")}) AND #{camelize_key(k)} <= DateTime(#{v.last.strftime("%Y,%m,%d")})" 
+            "#{camelize_key(k)} >= DateTime(#{v.first.strftime("%Y,%m,%d")}) AND #{camelize_key(k)} <= DateTime(#{v.last.strftime("%Y,%m,%d")})"
           else
             "#{camelize_key(k)} >= #{v.first} AND #{camelize_key(k)} <= #{v.last}"
           end
